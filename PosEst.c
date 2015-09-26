@@ -8,8 +8,8 @@
 #define gps_xy_weight 1.0
 #define gps_z_weight 0.0
 #elif INDOOR
-#define vicon_xy_weight 2.0
-#define vicon_z_weight 2.0
+#define vicon_xy_weight 5.0
+#define vicon_z_weight 5.0
 #endif
 int accStaticCorr[3] = {0,0,0};
 #if OUTDOOR
@@ -75,9 +75,9 @@ void vicon_pos_corr(short dt)
 	inertial_filter_correct(corr_y, dt, pos.y_est, 0, vicon_xy_weight);
 	inertial_filter_correct(corr_z, dt, pos.z_est, 0, vicon_z_weight);
 	
-	vicon.vx = (vicon.x - l_x) *1000/ dt;//*3/10;
-	vicon.vy = (vicon.y - l_y) *1000/ dt;//*3/10;
-	vicon.vz = (vicon.z - l_z) *1000/ dt;//*3/10;
+	vicon.vx = (vicon.x - l_x) *1000/ dt;
+	vicon.vy = (vicon.y - l_y) *1000/ dt;
+	vicon.vz = (vicon.z - l_z) *1000/ dt;
 	l_x=vicon.x;
 	l_y=vicon.y;
 	l_z=vicon.z;			

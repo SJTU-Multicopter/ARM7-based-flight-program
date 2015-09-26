@@ -5,23 +5,23 @@
 #include "fixed_matrix_control.h"
 #if R_CTRL_PID
 PID pitchPID={0,0,0,0,
-			2.21,
-			20.1,0,0.03};//.006};//I0.0082*57.3
+			2.64,
+			22.5,0,0.037};//.006};//I0.0082*57.3
 PID rollPID={0,0,0,0,
-			2.21,
-			22.4,0,0.03};//.006};
+			2.27,
+			24.5,0,0.036};//.006};
 PID yawPID={0,0,0,0,
 			3.0,
 			34.4,0,0};
 PID altPID={0,0,0,0,
-			1.63,
-			2.20,0.0,0.0};//0.0068,0.0218};
+			1.1,
+			1.4,0.0,0.0};//0.0068,0.0218};
 PID pos_xPID={0,0,0,0,
-			0.65,
-			1.5,0.0,0.0};//0.0076};
+			0.31,
+			2.79,0.0,0.006};//0.0076};
 PID pos_yPID={0,0,0,0,
-			0.49,
-			1.12,0.0,0.0};//0.0076};
+			0.31,
+			2.49,0.0,0.006};//0.0076};
 #endif
 int external_err_pid(PID *pid, int err, short dt);
 int internal_err_pid(PID *pid, int rate_err, short dt);
@@ -80,7 +80,7 @@ void position_control(short dt)
 	}
 	cmd.pitch_sp = -asin(R_sp[2][0]/16384.0f)*16384;
 	cmd.roll_sp = atan2(R_sp[2][1], R_sp[2][2])*16384;
-	cmd.yaw_sp = -atan2(R_sp[0][1], R_sp[1][1])*16384;
+//	cmd.yaw_sp = -atan2(R_sp[0][1], R_sp[1][1])*16384;
 }
 void altitude_control(short dt)
 {
@@ -205,7 +205,8 @@ int force2output(int force, int battery)
 //mNewton to 0~1024
 {
 	if(battery == 0){
-		return force*100/1087 + 10;
+		//return force*100/1087 + 10;//full baterry,low 120
+		return force*105/1087 + 10;
 	} else{
 		return 0;
 	}

@@ -63,25 +63,25 @@ void get_rc(short dt)
 		cmd.altRate_sp = dead_zone(cmd.rc[2] * MAX_ALT_RATE>>10, 50); //+-0.5m/s		
 	}
 	//tuning
-	pos_yPID.Prate = 4.12 + (cmd.rc[5]/1024.0)*0.6;
-	pos_xPID.Prate = 4.12 + (cmd.rc[6]/1024.0)*0.6;
-	pos_yPID.P = 0.49 + (cmd.rc[7]/1024.0)*0.20;
+	pos_yPID.Prate = 2.65 + (cmd.rc[5]/1024.0)*1.0;
+	pos_xPID.Prate = 2.65 + (cmd.rc[6]/1024.0)*1.0;
+	//pos_yPID.Irate = 0.02 + (cmd.rc[7]/1024.0)*0.02;
 	
-//	pos_yPID.P = pos_xPID.P;
+	pos_xPID.P = pos_yPID.P;
 //	pos_yPID.Prate = pos_xPID.Prate;	
 //	pos_yPID.Irate = pos_xPID.Irate;
 //	pos_yPID.Drate = pos_xPID.Drate;	
-//	altPID.P = 1.63 + (cmd.rc[5]/1024.0)*1.0;
-//	altPID.Prate = 2.2 + (cmd.rc[6]/1024.0)*1.0;
+//	altPID.P = 0.8 + (cmd.rc[5]/1024.0)*0.3;
+//	altPID.Prate = 1.1 + (cmd.rc[6]/1024.0)*0.3;
 //	altPID.Drate = 0.001 + cmd.rc[7]*0.001;
 //	altPID.Irate = 0.1 + cmd.rc[7]*0.1;
 
 	
-//	pitchPID.Prate = 26.0 + (cmd.rc[5]/1024.0)*6.0;
-//	pitchPID.Drate = 0.02 + (cmd.rc[5]/1024.0)*0.02;
-//	pitchPID.P = 2.81 + (cmd.rc[7]/1024.0)*0.6;
-//	rollPID.Prate = 28.4 + (cmd.rc[6]/1024.0)*6.0;
-//	rollPID.Drate = 0.02 + (cmd.rc[6]/1024.0)*0.02;
+//	pitchPID.Prate = 22.5 + (cmd.rc[6]/1024.0)*2.0;
+//	pitchPID.Drate = 0.03 + (cmd.rc[7]/1024.0)*0.03;
+//	pitchPID.P = 2.21 + (cmd.rc[5]/1024.0)*0.6;
+//	rollPID.Prate = 22.4 + (cmd.rc[6]/1024.0)*6.0;
+//	rollPID.Drate = 0.03 + (cmd.rc[7]/1024.0)*0.03;
 //	rollPID.P = pitchPID.P;
 	//mode change
 	

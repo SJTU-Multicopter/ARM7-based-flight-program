@@ -91,12 +91,12 @@ void data_select(void)
 		data2[0] = cmd.pitch_sp*573>>14;
 		data2[1] = att.pitch*573>>14;		
 		data2[2] = cmd.roll_sp*573>>14;				
-		data2[3] = att.roll*573>>14;
+		data2[3] = cmd.alt_sp;
 		data2[4] = cmd.pos_x_sp;
 		data2[5] = cmd.pos_y_sp;
 		data2[6] = pos.x_est[0];
 		data2[7] = pos.y_est[0];		
-		data2[8] = idle_time;
+		data2[8] = pos.z_est[0];
 		break;
 		case sendPOS://4
 		data2[0] = pos.x_est[0];
@@ -204,7 +204,7 @@ int main (void)
 				if(smpl.xbeeflag){
 					smpl.xbeeflag = 0;
 					get_xbee_data();
-					vicon_pos_corr(smpl.ViconCount*2/25);
+					vicon_pos_corr(smpl.ViconCount/25);
 					smpl.ViconCount = 0;
 				}
 			#endif				
