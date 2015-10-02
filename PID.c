@@ -128,7 +128,7 @@ void pid_calculate(short dt)
 						 MIN_THRUST, MAX_THRUST);
 	}
 }
-void reset_variables(void)
+/*void reset_variables(void)
 {
 	altPID.int_RateErr = 0;
 	pitchPID.int_RateErr = 0;
@@ -139,6 +139,7 @@ void reset_variables(void)
 	cmd.yaw_sp = att.yaw;
 	cmd.alt_sp = pos.z_est[0];
 }
+*/
 void throtle_control(short dt)
 {
 	if(mode.FlightMode == MANUEL || mode.FlightMode == ACROBATIC || mode.FlightMode == XY_CTRL){

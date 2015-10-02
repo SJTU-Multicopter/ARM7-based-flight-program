@@ -10,7 +10,7 @@
 #endif
 
 __irq void pit_int_handler(void){
-	unsigned char currentPPM=0;
+	unsigned char currentPPM=1;
 	static int cntPPM;
 //	static int cntSonar;
 	static char lastPPM;
@@ -23,7 +23,7 @@ __irq void pit_int_handler(void){
 //	unsigned int Mask=0; 	
 //	static unsigned int LastPins;
 	if (*AT91C_PIOA_PDSR & IN0){
-		currentPPM=1;
+		currentPPM=0;
 	}
 //	if (*AT91C_PIOA_PDSR & IN1){CurrentPins|=(unsigned int)1<<0;}
 //	if (*AT91C_PIOA_PDSR & IN2){CurrentPins|=(unsigned int)1<<1;}
@@ -41,7 +41,7 @@ __irq void pit_int_handler(void){
 			timePPM=cntPPM;
 			if(timePPM>=0 && timePPM<=100){
 				if(channel < 9){
-					cmd.rc[channel]=timePPM*95-2921;//20-30.75-41.5
+					cmd.rc[channel]=71*timePPM - 1942;//20-30.75-41.5//13~42for F450
 					//((float)timePPM-40)/15;//25-40-55
 				}
 				channel++;				
@@ -85,7 +85,7 @@ __irq void pit_int_handler(void){
 	smpl.UARTSendCount++;
 	smpl.BaroCount++;
 	smpl.RadioCount++;
-	smpl.ViconCount++;
+	smpl.UARTreceiveCount++;
 	if (smpl.attComputeCount == 25000/smpl.attComputeRate){
 		smpl.attComputeCount =0;
 		smpl.attComputeNow = 1;

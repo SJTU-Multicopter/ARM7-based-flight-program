@@ -5,16 +5,17 @@
 #define CROSS 1
 #define MY_BOARD 0
 #define FANGS_BOARD 0
-#define NEW_BOARD 1
-#define F330 1
+#define NEW_BOARD 0
+#define BOARD_V4 1
+#define F450 1
+#define F330 0
 #define F240 0
-#define INDOOR 1
-#define OUTDOOR 0
+#define INDOOR 0
+#define OUTDOOR 1
 #define XBEE_INT 0
 #define XBEE_DMA 1
 #define HMC_COMPASS 1
 #define MPU_COMPASS 0
-#define ALT_INCREAMENTAL_PID 0
 #define ALT_POSITIONAL_PID 1
 #define ORIGINAL_FREQ 1
 #define DOUBLED_FREQ 0
@@ -22,17 +23,22 @@
 #define R_CTRL_PID 1
 #if OUTDOOR
 struct gps{
-	double lat;
-	double lon;
-	float alt;
-	float vel;
-	float azm; //azimuth, degrees
+	int lat;
+	int lon;
+	int alt;
+	int vel;
+	int azm; //azimuth, degrees
 	short sat;
 	short status;
 	char gpsflag;
 	int x;
 	int y;
 	int z;
+	int vx;
+	int vy;
+	int vz;	
+	
+	
 	#define GPS_PERIOD 200
 };
 extern struct gps gps;
@@ -62,7 +68,7 @@ struct smpl{
 	 long UARTSendCount;
 	 long BaroCount;
 	 long RadioCount;
-	 long ViconCount;
+	 long UARTreceiveCount;
 	 short halfT;
 	 short baroStep;
 	 short UARTStep;
@@ -162,6 +168,11 @@ struct output {
 	int ref_thrust;
 };
 extern struct output output;
+
+struct adc {
+	unsigned int battery;//in mV
+};
+extern struct adc adc;
 extern short data2[9];
 typedef struct myPID {
 	int Err;
@@ -196,7 +207,9 @@ extern PID pos_yPID;
 
 #define yawRateCmndRatio 4.0 //max 50 deg/sec
 #define AltRateCmndRatio 0.01//m/s
-#if F330
+#if F450
+	#define thrCmndRatio 1.0
+#elif F330
 	#define thrCmndRatio 19/10
 #elif F240
 	#define thrCmndRatio 2.6
@@ -210,7 +223,9 @@ extern PID pos_yPID;
 #define MIN_THRUST 154//0.15*1024
 #define MAX_THRUST 1331//1.3
 #define MID_THROTLE 717//0.7
-#if F330
+#if F450
+	#define VEHICLE_MASS 1037//g
+#elif F330
 	#define VEHICLE_MASS 950//g
 #elif F240
 	#define VEHICLE_MASS 650

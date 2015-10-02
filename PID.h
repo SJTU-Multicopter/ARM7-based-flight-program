@@ -10,6 +10,6 @@ int internal_pid(PID *pid, int measured, int setpt, short dt);
 }
 #endif
 void pid_calculate(short dt);
-void reset_variables(void);
+//void reset_variables(void);
 void throtle_control(short dt);
 #endif

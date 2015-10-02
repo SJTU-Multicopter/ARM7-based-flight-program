@@ -99,7 +99,7 @@ void get_gps_data(void)//read the data we want in gps_buffer[160]
 	static int string_offset=0;
 	static int received_type=0;//the type of the data between two ","
 	static int frame=0;//GGA or RMC
-	static double gps_temp_data[2]={0,0};//to store unsigned LAT and LON, and wait for the NSEW letter
+	static int gps_temp_data[2]={0,0};//to store unsigned LAT and LON, and wait for the NSEW letter
 	unsigned char gps_in;
 	int i,j;
 	for(j=0;j<160;j++)
@@ -141,7 +141,7 @@ void get_gps_data(void)//read the data we want in gps_buffer[160]
 					gps.sat=(string[0]-48)*10+(string[1]-48);
 				}
 				else if(received_type==9){//altitude -9,999.9 ~ 99,999.9
-					gps.alt=char_to_float(string);
+					gps.alt=char_to_float(string)*1000;//unit of mm
 				}
 				else{
 		
@@ -149,10 +149,16 @@ void get_gps_data(void)//read the data we want in gps_buffer[160]
 			}
 			if(frame==GPRMC){
 				if(received_type==3){//latitude ddmm.mmmm
-					gps_temp_data[LAT]=//((string[0]-48)*10+(string[1]-48))
-					((string[2]-48)*10+(string[3]-48)
-					+(string[5]-48)*0.1+(string[6]-48)*0.01+(string[7]-48)*0.001
-					+(string[8]-48)*0.0001+(string[9]-48)*0.00001)/60.0;
+					gps_temp_data[LAT]=
+					(string[0]-48)*10000000
+					+(string[1]-48)*1000000
+						+((string[2]-48)*1000000
+						+(string[3]-48)*100000
+						+(string[5]-48)*10000
+						+(string[6]-48)*1000
+						+(string[7]-48)*100
+						+(string[8]-48)*10
+						+(string[9]-48)*1)/6;//10^6deg
 				}
 				else if(received_type==4){//latitude NS
 					if(string[0]=='N'){
@@ -163,10 +169,17 @@ void get_gps_data(void)//read the data we want in gps_buffer[160]
 					}
 				}
 				else if(received_type==5){//longitude dddmm.mmmm
-					gps_temp_data[LON]=//((string[0]-48)*100+(string[1]-48)*10+(string[2]-48))
-					((string[3]-48)*10+(string[4]-48)
-					+(string[6]-48)*0.1f+(string[7]-48)*0.01f+(string[8]-48)*0.001f
-					+(string[9]-48)*0.0001f+(string[10]-48)*0.00001f)/60.0;
+					gps_temp_data[LON]=
+					(string[0]-48)*100000000
+					+(string[1]-48)*10000000
+					+(string[2]-48)*1000000
+						+((string[3]-48)*1000000
+						+(string[4]-48)*100000
+						+(string[6]-48)*10000
+						+(string[7]-48)*1000
+						+(string[8]-48)*100
+						+(string[9]-48)*10
+						+(string[10]-48)*1)/6;
 				}
 				else if(received_type==6){//longitude EW			
 					if(string[0]=='E'){
@@ -177,10 +190,10 @@ void get_gps_data(void)//read the data we want in gps_buffer[160]
 					}
 				}
 				else if(received_type==7){//velocity Knots{
-					gps.vel=char_to_float(string)*0.5144f;//1 knot = 0.5144m/s
+					gps.vel=char_to_float(string)*514.4f;//1 knot = 0.5144m/s = 514.4mm/s
 				}
 				else if(received_type==8){//azimuth deg			
-					gps.azm=char_to_float(string);
+					gps.azm=char_to_float(string) * DEG2RAD * 16384;
 				}
 				else{
 

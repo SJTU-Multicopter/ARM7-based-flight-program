@@ -27,6 +27,13 @@
 	#define  C4 0x6C87
 	#define  C5 0x808B
 	#define  C6 0x6E0A
+#elif BOARD_V4
+	#define  C1 0xB785				//Fang's
+	#define  C2 0xBE94
+	#define  C3 0x70FE
+	#define  C4 0x64EF
+	#define  C5 0x7CCE
+	#define  C6 0x6CFF
 #endif
 unsigned short setup,CRC;
 float dT,Temperature,Pressure;//,refPressure=101000;
@@ -253,27 +260,29 @@ unsigned short SPI_B0_Read_16bits(unsigned char addr)
 {
   	unsigned char byteH,byteL;
   	unsigned short return_value;
- //  	SPIenable();
+   	SPIenable();
 	SPI_B0_Send_byte(addr);
 	byteH = SPI_B0_Receive_byte();
 	delay_ms(1);
 	byteL = SPI_B0_Receive_byte();
-//	SPIdisable();
+	SPIdisable();
 	return_value = (((unsigned short)byteH)<<8) | (byteL);
 	return(return_value);    
 }
-/*void MS5611_PROM_READ()
+void MS5611_PROM_READ()
 {
-//  	short data3[9];
+  	short data3[9];
   	SPIenable();
-  	C1 = SPI_B0_Read_16bits(CMD_MS5611_PROM_C1);
-  	C2 = SPI_B0_Read_16bits(CMD_MS5611_PROM_C2);
-  	C3 = SPI_B0_Read_16bits(CMD_MS5611_PROM_C3);
-  	C4 = SPI_B0_Read_16bits(CMD_MS5611_PROM_C4);
-  	C5 = SPI_B0_Read_16bits(CMD_MS5611_PROM_C5);
-  	C6 = SPI_B0_Read_16bits(CMD_MS5611_PROM_C6);
-  	setup = SPI_B0_Read_16bits(CMD_MS5611_RESET);
-  	CRC = SPI_B0_Read_16bits(CMD_MS5611_PROM_CRC);
+  	data3[0] = SPI_B0_Read_16bits(CMD_MS5611_PROM_C1);
+  	data3[1] = SPI_B0_Read_16bits(CMD_MS5611_PROM_C2);
+  	data3[2] = SPI_B0_Read_16bits(CMD_MS5611_PROM_C3);
+  	data3[3] = SPI_B0_Read_16bits(CMD_MS5611_PROM_C4);
+  	data3[4] = SPI_B0_Read_16bits(CMD_MS5611_PROM_C5);
+  	data3[5] = SPI_B0_Read_16bits(CMD_MS5611_PROM_C6);
+	data3[0] = SPI_B0_Read_16bits(CMD_MS5611_PROM_C1);
+  	data3[6] = SPI_B0_Read_16bits(CMD_MS5611_RESET);
+  	data3[7] = SPI_B0_Read_16bits(CMD_MS5611_PROM_CRC);
+	data3[0] = data3[0];
 //	data3[0]=C1;
 //	data3[1]=C2;
 //	data3[2]=C3;
@@ -286,7 +295,7 @@ unsigned short SPI_B0_Read_16bits(unsigned char addr)
 //	Uart_send_packet(data3,18);  
 	SPIdisable();
 }
-*/
+
 void SPIenable(void)
 {
 	*AT91C_PIOA_CODR=1<<11;//low-active CSB

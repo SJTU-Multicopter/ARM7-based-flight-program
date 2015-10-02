@@ -42,6 +42,22 @@ short mag_x_bias=-130;
 short mag_y_bias=-100;
 short mag_z_bias=-35;
 #endif
+#elif BOARD_V4
+short gyr_x_bias=0;
+short gyr_y_bias=0;
+short gyr_z_bias=0;
+short acc_x_bias=0;
+short acc_y_bias=0;
+short acc_z_bias=-258;
+#if MPU_COMPASS
+short mag_x_bias=0;
+short mag_y_bias=0;
+short mag_z_bias=0;
+#elif HMC_COMPASS
+short mag_x_bias=-265;
+short mag_y_bias=-50;
+short mag_z_bias=280;
+#endif
 #endif
 
 

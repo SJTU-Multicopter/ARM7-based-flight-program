@@ -4,7 +4,6 @@
 #include "attitude.h"
 void command_init(void)
 {
-	cmd.yaw_sp = att.yaw;
 	cmd.alt_sp = pos.z_est[0];	
 	#if INDOOR
 	cmd.pos_x_sp = pos.x_est[0];
@@ -18,10 +17,10 @@ void get_rc(short dt)
 	int expctAltRate,expctYawRate;
 	mode.l_FlightMode = mode.FlightMode;
 	if (cmd.rc[4] > 307){	   //switch upward	
-		mode.FlightMode = POS_CTRL;
+		mode.FlightMode = MANUEL;
 	}
 	else if(cmd.rc[4] > -307){		//in the middle
-		mode.FlightMode = ALT_CTRL;
+		mode.FlightMode = MANUEL;
 	}
 	else{		//downward
 		mode.FlightMode = MANUEL;
@@ -52,7 +51,7 @@ void get_rc(short dt)
 	cmd.yaw_sp += expctYawRate * dt>>10;		
 	//throtle command for manuel, acrob
 	if(mode.FlightMode == MANUEL || mode.FlightMode == ACROBATIC|| mode.FlightMode == XY_CTRL){
-		cmd.Thrust = dead_zone(constrain((cmd.rc[2] + 1024)/2 * thrCmndRatio, 0, 1400), 150);
+		cmd.Thrust = dead_zone(constrain((cmd.rc[2] + 1024)/2 * thrCmndRatio, 0, 1400), 50);
 	}
 	//alt command for altctrl, posctrl
 	else if(mode.FlightMode==ALT_CTRL||mode.FlightMode==POS_CTRL||mode.FlightMode == POS_RATE_CTRL){
@@ -111,7 +110,7 @@ void put_motors(void)
 		motorVal[1] = (-output.pitch - output.roll) * HALF_SQRT_2 - output.yaw + output.thrust * 100;
 		motorVal[2] = (output.pitch - output.roll) * HALF_SQRT_2 + output.yaw + output.thrust * 100;
 		motorVal[3] = (-output.pitch + output.roll) * HALF_SQRT_2 + output.yaw + output.thrust * 100;
-	#endif	
+	#endif		
 		for(i=0;i<4;i++){
 			motorDuty[i]=constrain((unsigned short)((motorVal[i]*24>>11) + 2640), 2400, 5280);
 		}

@@ -13,7 +13,7 @@
 #endif
 int accStaticCorr[3] = {0,0,0};
 #if OUTDOOR
-double home_lat, home_lon, home_gps_alt;
+int home_lat, home_lon, home_gps_alt;
 void gps_pos_init(void)
 {
 	home_lat = gps.lat;
@@ -28,15 +28,24 @@ void gps_pos_init(void)
 }
 void gps2xyz(void)
 {
-	double relative_lat_rad = (gps.lat - home_lat) * DEG2RAD;
-	double relative_lon_rad = (gps.lon - home_lon) * DEG2RAD;
-	gps.y = relative_lat_rad * EARTH_RADIAS*1000;
-	gps.x = relative_lon_rad * EARTH_RADIAS * cos(home_lat * DEG2RAD)*1000;
+	double relative_lat_rad = (gps.lat - home_lat) / 3508.0;//*1/1000000 * DEG2RAD*16384;
+	double relative_lon_rad = (gps.lon - home_lon) / 3508.0;
+	gps.y = (int)(relative_lat_rad * EARTH_RADIAS*1000)>>14;
+	gps.x = relative_lon_rad * EARTH_RADIAS * cos(home_lat /57471264.0)*1000;
 	gps.z = (gps.alt - home_gps_alt)*1000;
 }
 void gps_pos_corr(short dt)
 {
-	int corr_x, corr_y, corr_z;	
+	int corr_x, corr_y, corr_z;
+	short corr_vx, corr_vy, corr_vz;
+	static int l_x=0,l_y=0,l_z=0;
+	static char start = 1;
+	if(start == 1){
+		l_x = gps.x;
+		l_y = gps.y;	
+		l_z = gps.z;
+		start = 0;
+	}	
 	gps2xyz();
 	corr_x = gps.x - pos.x_est[0];
 	corr_y = gps.y - pos.y_est[0];
@@ -44,6 +53,19 @@ void gps_pos_corr(short dt)
 	inertial_filter_correct(corr_x, dt, pos.x_est, 0, gps_xy_weight);
 	inertial_filter_correct(corr_y, dt, pos.y_est, 0, gps_xy_weight);
 	inertial_filter_correct(corr_z, dt, pos.z_est, 0, gps_z_weight);
+	gps.vx = (gps.x - l_x) *1000/ dt;
+	gps.vy = (gps.y - l_y) *1000/ dt;
+	gps.vz = (gps.z - l_z) *1000/ dt;
+	//compare with gps.vel
+	l_x=gps.x;
+	l_y=gps.y;
+	l_z=gps.z;			
+	corr_vx = gps.vx - pos.x_est[1];
+	corr_vy = gps.vy - pos.y_est[1];
+	corr_vz = gps.vz - pos.z_est[1];
+	inertial_filter_correct(corr_vx, dt, pos.x_est, 1, gps_xy_weight);
+	inertial_filter_correct(corr_vy, dt, pos.y_est, 1, gps_xy_weight);
+	inertial_filter_correct(corr_vz, dt, pos.z_est, 1, gps_z_weight);
 }
 #elif INDOOR
 void vicon_pos_init(void)
@@ -90,23 +112,24 @@ void vicon_pos_corr(short dt)
 }
 #endif
 
-void corr_geo_acc(int avgGlobAcc[3])
+void corr_geo_acc(int avgAcc[3])
 {
 	int i;
 	for(i=0;i<3;i++)
-		accStaticCorr[i] = -avgGlobAcc[i];
+		accStaticCorr[i] = -avgAcc[i];
 }
 void get_geo_acc(int globAcc[3])
 {
 	int bdyAcc[3]={0,0,0};
-//	short i;
-	bdyAcc[0] = sens.ax * GRAVITY / 8192;//+acc_bias[0];			  //加速度计量程必须能容得下振动的峰值，否则算出加速度一直低于0
-	bdyAcc[1] = sens.ay * GRAVITY / 8192;//+acc_bias[1];
-	bdyAcc[2] = sens.az * GRAVITY / 8192;//+acc_bias[2];
+	short i;
+	//加速度计量程必须能容得下振动的峰值，否则算出加速度一直低于0
+	bdyAcc[0] = sens.ax * GRAVITY / 8192;
+	bdyAcc[1] = sens.ay * GRAVITY / 8192;
+	bdyAcc[2] = sens.az * GRAVITY / 8192;
+	for(i=0;i<3;i++)
+		bdyAcc[i] += accStaticCorr[i];
 	body2glob(bdyAcc, globAcc, 3);
 	globAcc[2] -= GRAVITY;
-//	for(i=0;i<3;i++)
-//		globAcc[i] += accStaticCorr[i];
 }
 void pos_predict(short dt)
 {

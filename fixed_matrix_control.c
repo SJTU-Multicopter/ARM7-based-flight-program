@@ -1,9 +1,28 @@
-#include "PID.h"
 #include "global.h"
 #include "attitude.h"
 #include "math.h"
 #include "fixed_matrix_control.h"
 #if R_CTRL_PID
+#if F330
+PID pitchPID={0,0,0,0,
+			2.64,
+			22.5,0,0.037};//.006};//I0.0082*57.3
+PID rollPID={0,0,0,0,
+			2.27,
+			24.5,0,0.036};//.006};
+PID yawPID={0,0,0,0,
+			3.0,
+			34.4,0,0};
+PID altPID={0,0,0,0,
+			1.1,
+			1.4,0.0,0.0};//0.0068,0.0218};
+PID pos_xPID={0,0,0,0,
+			0.31,
+			2.79,0.0,0.006};//0.0076};
+PID pos_yPID={0,0,0,0,
+			0.31,
+			2.49,0.0,0.006};//0.0076};
+#elif F450
 PID pitchPID={0,0,0,0,
 			2.64,
 			22.5,0,0.037};//.006};//I0.0082*57.3
@@ -23,9 +42,10 @@ PID pos_yPID={0,0,0,0,
 			0.31,
 			2.49,0.0,0.006};//0.0076};
 #endif
+#endif
 int external_err_pid(PID *pid, int err, short dt);
 int internal_err_pid(PID *pid, int rate_err, short dt);
-int force2output(int force, int battery);
+int force2output(int force, unsigned int battery);
 int R_sp[3][3];
 void position_control(short dt)
 {
@@ -34,20 +54,20 @@ void position_control(short dt)
 	int norm;
 	short i;	
 	//get acc sp from position setpoint
-	globVel_sp[0] = constrain(pos_xPID.P * (cmd.pos_x_sp - pos.x_est[0]), -MAX_XY_VEL, MAX_XY_VEL);
-	globVel_sp[1] = constrain(pos_yPID.P * (cmd.pos_y_sp - pos.y_est[0]), -MAX_XY_VEL, MAX_XY_VEL);
-	globVel_sp[2] = constrain(external_pid(&altPID, pos.z_est[0], cmd.alt_sp, dt), -MAX_ALT_VEL, MAX_ALT_VEL);
+	globVel_sp[0] = constrain(external_err_pid(&pos_xPID, cmd.pos_x_sp - pos.x_est[0], dt), -MAX_XY_VEL, MAX_XY_VEL);
+	globVel_sp[1] = constrain(external_err_pid(&pos_yPID, cmd.pos_y_sp - pos.y_est[0], dt), -MAX_XY_VEL, MAX_XY_VEL);
+	globVel_sp[2] = constrain(external_err_pid(&altPID, cmd.alt_sp - pos.z_est[0], dt), -MAX_ALT_VEL, MAX_ALT_VEL);
 	
-	globAcc_sp[0] = internal_pid(&pos_xPID, pos.x_est[1], globVel_sp[0],dt);
-	globAcc_sp[1] = internal_pid(&pos_yPID, pos.y_est[1], globVel_sp[1],dt);
-	globAcc_sp[2] = GRAVITY + internal_pid(&altPID, pos.z_est[1], globVel_sp[2], dt);
+	globAcc_sp[0] = internal_err_pid(&pos_xPID, globVel_sp[0] - pos.x_est[1], dt);
+	globAcc_sp[1] = internal_err_pid(&pos_yPID, globVel_sp[1] - pos.y_est[1], dt);
+	globAcc_sp[2] = GRAVITY + internal_err_pid(&altPID, globVel_sp[2] - pos.z_est[1], dt);
 	//dot product of setpoint and current z axis of body
 	for(i=0;i<3;i++)
 		Z_b[i]=att.R[i][2];
 //in c++,	cmd.Thrust = (globAcc_sp * Z_b) * VEHICLE_MASS;
 	cmd.Thrust = ((Z_b[0] * globAcc_sp[0] + Z_b[1] * globAcc_sp[1] + Z_b[2] * globAcc_sp[2])>>14) * VEHICLE_MASS/1000 ;
 //cmd.Thrust in mNewton
-	output.thrust = force2output(cmd.Thrust, 0);
+	output.thrust = force2output(cmd.Thrust, adc.battery);
 	//get the last col of R_sp from acc setpoint
 	for(i=0;i<3;i++)
 		body_z_sp[i] = globAcc_sp[i];
@@ -90,10 +110,10 @@ void altitude_control(short dt)
 		output.thrust = cmd.Thrust;	
 	}
 	else if(mode.FlightMode==ALT_CTRL||mode.FlightMode==POS_CTRL||mode.FlightMode == POS_RATE_CTRL){	
-		altRate_sp = constrain(external_pid(&altPID, pos.z_est[0], cmd.alt_sp, dt), -MAX_ALT_VEL, MAX_ALT_VEL);
-		altAcc_sp = GRAVITY + internal_pid(&altPID, pos.z_est[1], altRate_sp, dt);
+		altRate_sp = constrain(external_err_pid(&altPID, cmd.alt_sp - pos.z_est[0], dt), -MAX_ALT_VEL, MAX_ALT_VEL);
+		altAcc_sp = GRAVITY + internal_err_pid(&altPID, altRate_sp - pos.z_est[1], dt);
 		cmd.Thrust = ((altAcc_sp<<14) / att.R[2][2]) * VEHICLE_MASS/1000;
-		output.thrust = force2output(cmd.Thrust, 0);
+		output.thrust = force2output(cmd.Thrust, adc.battery);
 	}
 }
 void manual_R_sp_generate(void)
@@ -113,6 +133,17 @@ void manual_R_sp_generate(void)
 	R_sp[2][0] = -sp * 16384;
 	R_sp[2][1] = sr * cp * 16384;
 	R_sp[2][2] = cr * cp * 16384;
+}
+void reset_variables(void)
+{
+	altPID.int_RateErr = 0;
+	pitchPID.int_RateErr = 0;
+	rollPID.int_RateErr = 0;
+	yawPID.int_RateErr = 0;
+	pos_xPID.int_RateErr = 0;
+	pos_yPID.int_RateErr = 0;
+	cmd.yaw_sp = att.yaw;
+	cmd.alt_sp = pos.z_est[0];
 }
 void attitude_control(short dt)
 {
@@ -200,14 +231,16 @@ int internal_err_pid(PID *pid, int rate_err, short dt)
 	pid->int_RateErr += rate_err * dt/1000;
   	return rateOuput;
 }
-int force2output(int force, int battery)
+int force2output(int force, unsigned int battery)
 //converts a force in Newton to a output value between 0 and 1 (1.2)
 //mNewton to 0~1024
 {
+	int k;
 	if(battery == 0){
-		//return force*100/1087 + 10;//full baterry,low 120
-		return force*105/1087 + 10;
+		return force*110/1087 + 10;
 	} else{
-		return 0;
+		//full k=100, low k=120
+		k = constrain(310-(int)battery/20,95,125);
+		return force*k/1087 + 10;
 	}
 }

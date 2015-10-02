@@ -5,5 +5,7 @@ void altitude_control(short dt);
 void attitude_control(short dt);
 void manual_R_sp_generate(void);
 
+void reset_variables(void);
+
 
 #endif

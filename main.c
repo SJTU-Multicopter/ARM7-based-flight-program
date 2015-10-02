@@ -24,19 +24,22 @@
 #include "compass_on_gps.h"
 #include "EEPROM.h"
 #include "fixed_matrix_control.h"
+#include "ADC.h"
+
 
 void init_loop(void);
 int self_check(void);
 void data_select(void);
 #if OUTDOOR
-struct gps gps = {0.0,0.0,
-				0.0,0.0,0.0,
+struct gps gps = {0,0,
 				0,0,0,
-				0.0,0.0,0.0};
+				0,0,0,
+				0,0,0,
+				0,0,0};
 #elif INDOOR
 struct vicon vicon = {0,0,0,0,0,0,0};
 #endif
-struct smpl smpl = {250,100,1,100,
+struct smpl smpl = {250,100,75,100,
 					0,0,0,0,0,50,0,25,0,
 					0,0,0,0};
 struct att att = {0,0,0,
@@ -57,6 +60,7 @@ struct cmd cmd = {{0,0,0,0,0,0,0,0,0},
 					0,0,0,
 					0,SonarOFF,sendATT};
 struct output output = {0,0,0,0,0};
+struct adc adc = {0};
 short data2[9]={8,7,6,5,4,3,2,1,0xabcd};
 long toc;
 short idle_time=0;
@@ -91,9 +95,9 @@ void data_select(void)
 		data2[0] = cmd.pitch_sp*573>>14;
 		data2[1] = att.pitch*573>>14;		
 		data2[2] = cmd.roll_sp*573>>14;				
-		data2[3] = cmd.alt_sp;
-		data2[4] = cmd.pos_x_sp;
-		data2[5] = cmd.pos_y_sp;
+		data2[3] = att.roll*573>>14;
+		data2[4] = adc.battery;
+		data2[5] = idle_time;
 		data2[6] = pos.x_est[0];
 		data2[7] = pos.y_est[0];		
 		data2[8] = pos.z_est[0];
@@ -112,8 +116,8 @@ void data_select(void)
 		case sendPID://5
 		break;
 		case sendCMD://6
-		data2[0]=cmd.rc[0];
-		data2[1]=cmd.rc[1];		
+		data2[0]=cmd.Thrust;
+		data2[1]=output.thrust;		
 		data2[2]=cmd.rc[2];				
 		data2[3]=cmd.rc[3];
 		data2[4]=cmd.rc[4];
@@ -138,7 +142,8 @@ void data_select(void)
 	}
 }
 int main (void)
-{		
+{			
+	unsigned int adc_count=0;
 	smpl.halfT=1000 / smpl.attComputeRate / 2;
 	led_init();
 	led_ctrl(LED1,OFF);
@@ -157,7 +162,10 @@ int main (void)
 	gps_init();
 #endif
 	spi_init();
+	MS5611_PROM_READ();
 	xbee_init();
+	adc_init();
+	adc_start_conversion();
 	delay_ms(1000);
 	led_ctrl(LED2,OFF);
 	led_ctrl(LED1,ON);	
@@ -171,7 +179,7 @@ int main (void)
 		gyro_calibration();		
 		quarternion_init();		
 		init_loop();
-		while(!self_check());
+//		while(!self_check());
 		led_ctrl(LED1, OFF);	  
 		while(1){//flight loop		
 		/*deal with attitude (and position prediction), xbee send, gps (and xy position correction),
@@ -204,8 +212,8 @@ int main (void)
 				if(smpl.xbeeflag){
 					smpl.xbeeflag = 0;
 					get_xbee_data();
-					vicon_pos_corr(smpl.ViconCount/25);
-					smpl.ViconCount = 0;
+					vicon_pos_corr(smpl.UARTreceiveCount/25);
+					smpl.UARTreceiveCount = 0;
 				}
 			#endif				
 				if(smpl.RadioNow){
@@ -238,22 +246,21 @@ int main (void)
 					}
 					if(mode.CalibrationMode == MOTOR_CUT)
 						motor_cut();
+					else if(cmd.rc[2]<-800 && cmd.rc[4]<200 && cmd.rc[4]>-200 && cmd.rc[5]<200 && cmd.rc[5]>-200 && cmd.rc[6]<200 && cmd.rc[6]>-200 )
+						motor_cut();
 					else put_motors();
+					adc_count++;
+					if(adc_count>=200){
+						adc_count = 0;
+						//3.75V~818
+						//4.14V~904
+						adc.battery = constrain(adc_get_converted()*195/43,3500,4300);
+						adc_start_conversion();	
+					}
 				}
 			#if INDOOR
 				if(smpl.BaroNow){
-					smpl.BaroNow = 0;	
-/*					if(a){
-						a=0;
-						led_ctrl(LED2,OFF);
-						led_ctrl(LED1,ON);
-					}
-					else{
-						a=1;
-						led_ctrl(LED1,OFF);
-						led_ctrl(LED2,ON);
-					}
-*/
+					smpl.BaroNow = 0;
 				}
 			#elif OUTDOOR		
 				if(smpl.BaroNow){
@@ -282,7 +289,7 @@ void init_loop(void)
 	corrections in geographical coordinate are obtained*/
 	#define LOOP_TIMES 300
 	float sum_pressure = 0;
-	int avgGlobAcc[3] = {0,0,0},sumGlobAcc[3] = {0,0,0},GlobAcc[3] = {0,0,0};
+	int avgGlobAcc[3] = {0,0,0},sumGlobAcc[3] = {0,0,0},GlobAcc[3] = {0,0,0},avgBdyAcc[3] = {0,0,0};
 	short baro_cnt = 0,acc_cnt = 0;
 	short i = 0,j = 0;
 	while(i < LOOP_TIMES){//init loop
@@ -302,7 +309,7 @@ void init_loop(void)
 		if(smpl.xbeeflag){
 			smpl.xbeeflag = 0;
 			get_xbee_data();
-			smpl.ViconCount = 0;
+			smpl.UARTreceiveCount = 0;
 		}
 	#endif		
 		if(smpl.BaroNow){
@@ -333,7 +340,8 @@ void init_loop(void)
 	for(j = 0; j < 3; j++){
 		avgGlobAcc[j] = sumGlobAcc[j] / acc_cnt;
 	}
-	corr_geo_acc(avgGlobAcc);
+	glob2body(avgBdyAcc, avgGlobAcc, 3);
+	corr_geo_acc(avgBdyAcc);
 }
 int self_check(void)
 {
