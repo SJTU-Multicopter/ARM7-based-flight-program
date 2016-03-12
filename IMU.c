@@ -2,62 +2,69 @@
 #include "IMU.h"
 #include "timer.h"
 #include "mytwi_new.h"
+#include "LED.h"
+#include "twi_fast.h"
+#include "Filter.h"
 #include "compass_on_gps.h"
+IIRFilter iir_ax={0.0,0.0,0.0,
+				0.0,0.0,0.0,
+				0.0,0.0};
+IIRFilter iir_ay={0.0,0.0,0.0,
+				0.0,0.0,0.0,
+				0.0,0.0};
+IIRFilter iir_az={0.0,0.0,0.0,
+				0.0,0.0,0.0,
+				0.0,0.0};
+char IMU_received[12];
+char compass_received[6];
 short maxMagX=0,maxMagY=0,maxMagZ=0;
 short minMagX=0,minMagY=0,minMagZ=0;
 char testing;
-#if MY_BOARD
-short gyr_x_bias=1;
-short gyr_y_bias=-30;
-short gyr_z_bias=-15;
-short acc_x_bias=204;
-short acc_y_bias=61;
-short acc_z_bias=-578;
-short mag_x_bias=-81+65;
-short mag_y_bias=-50;
-short mag_z_bias=39-65;
-#elif FANGS_BOARD
-short gyr_x_bias=-102;
-short gyr_y_bias=10;
-short gyr_z_bias=-91;
-short acc_x_bias=409/2;
-short acc_y_bias=136/2;
-short acc_z_bias=(-466-498+2)/2;
-short mag_x_bias=57;
-short mag_y_bias=8;
-short mag_z_bias=-34;
-#elif NEW_BOARD
 short gyr_x_bias=0;
 short gyr_y_bias=0;
 short gyr_z_bias=0;
-short acc_x_bias=98;
-short acc_y_bias=-51;
-short acc_z_bias=-851;
-#if MPU_COMPASS
-short mag_x_bias=-80;
-short mag_y_bias=-11;
-short mag_z_bias=8;
-#elif HMC_COMPASS
-short mag_x_bias=-130;
-short mag_y_bias=-100;
-short mag_z_bias=-35;
-#endif
-#elif BOARD_V4
-short gyr_x_bias=0;
-short gyr_y_bias=0;
-short gyr_z_bias=0;
-short acc_x_bias=0;
-short acc_y_bias=0;
-short acc_z_bias=-258;
-#if MPU_COMPASS
-short mag_x_bias=0;
-short mag_y_bias=0;
-short mag_z_bias=0;
-#elif HMC_COMPASS
-short mag_x_bias=-265;
-short mag_y_bias=-50;
-short mag_z_bias=280;
-#endif
+short ax,ay,az;
+#if BOARD_V5
+	#if F330
+	short acc_x_bias=0;
+	short acc_y_bias=0;
+	short acc_z_bias=-500;
+		#if MPU_COMPASS
+		short mag_x_bias=0;
+		short mag_y_bias=0;
+		short mag_z_bias=0;
+		#elif HMC_COMPASS
+		short mag_x_bias=-60;
+		short mag_y_bias=-30;
+		short mag_z_bias=-35;
+		#endif
+	#elif F450
+	short acc_x_bias=-90;
+	short acc_y_bias=0;
+	short acc_z_bias=-299;
+		#if MPU_COMPASS
+		short mag_x_bias=0;
+		short mag_y_bias=0;
+		short mag_z_bias=0;
+		#elif HMC_COMPASS
+		short mag_x_bias=-70;
+		short mag_y_bias=30;
+		short mag_z_bias=-10;
+		#endif
+	#elif XINSONG
+		short acc_x_bias=-50;
+		short acc_y_bias=140;
+		short acc_z_bias=-366;
+		#if MPU_COMPASS
+		short mag_x_bias=0;
+		short mag_y_bias=0;
+		short mag_z_bias=0;
+		#elif HMC_COMPASS
+		short mag_x_bias=-20;
+		short mag_y_bias=30;
+		short mag_z_bias=-160;
+		#endif
+	#endif
 #endif
 
 
@@ -95,7 +102,6 @@ void compass_calibration_z(void)
 }
 void get_compass_bias(void)
 {
-	get_imu();
 	if(sens.mx>maxMagX)//max
 		maxMagX=sens.mx;
 	if(sens.mx<minMagX)//min
@@ -112,8 +118,7 @@ void get_compass_bias(void)
 void compass_calibration_conclude_xy(void)
 {
 	short MXgain,MYgain;
-	if((maxMagX - minMagX) >= (maxMagY - minMagY))
-	{
+	if((maxMagX - minMagX) >= (maxMagY - minMagY)){
 		MXgain = 1;
 		MYgain = (maxMagX - minMagX) / (maxMagY - minMagY);
 	}
@@ -145,17 +150,16 @@ void gyro_calibration(void)
 	gyr_x_bias=0;gyr_y_bias=0;gyr_z_bias=0;
 	for(i=0;i<200;i++)
 	{
-		get_imu();
 		temp1+=sens.gx;
 		temp2+=sens.gy;
 		temp3+=sens.gz;
-		delay_ms(2);
+		delay_ms(5);
 	}
 	gyr_x_bias=-temp1/200;
 	gyr_y_bias=-temp2/200;
 	gyr_z_bias=-temp3/200;
 }
-void get_imu(void)
+void get_imu_wait(void)
 {
 	typedef union myun{
 		char b[2];
@@ -229,8 +233,93 @@ void get_imu(void)
 	sens.ay = ay + acc_y_bias;
 	sens.az = az + acc_z_bias;
 	if(compass_available){
-		sens.mx = ((mx + mag_x_bias)<<10)/546;
-		sens.my = ((my + mag_y_bias)<<10)/523;
-		sens.mz = ((mz + mag_z_bias)<<10)/443;
+		sens.mx = (mx + mag_x_bias);
+		sens.my = (my + mag_y_bias);
+		sens.mz = (mz + mag_z_bias);
 	}
+}
+void continue_acc_read(void)
+{
+	twi_acc_read_start(IMU_received);
+}
+void continue_gyro_read(void)
+{
+	twi_gyro_read_start(IMU_received+6);
+}
+void continue_cps_read(void)
+{
+	twi_cps_read_start(compass_received);
+}
+void data_conclude(char switcher)
+{
+	typedef union myun{
+		char b[2];
+		short c;
+	}un;
+	un x_get,y_get,z_get;
+	short temp;
+	switch (switcher){
+	case ACC_SWITCH:
+		x_get.b[1] = IMU_received[0];
+		x_get.b[0] = IMU_received[1];
+		y_get.b[1] = IMU_received[2];
+		y_get.b[0] = IMU_received[3];
+		z_get.b[1] = IMU_received[4];
+		z_get.b[0] = IMU_received[5];
+		ax = x_get.c + acc_x_bias;
+		ay = y_get.c + acc_y_bias;
+		az = z_get.c + acc_z_bias;
+		break;
+	case GYRO_SWITCH:
+		x_get.b[1] = IMU_received[6];
+		x_get.b[0] = IMU_received[7];
+		y_get.b[1] = IMU_received[8];
+		y_get.b[0] = IMU_received[9];
+		z_get.b[1] = IMU_received[10];
+		z_get.b[0] = IMU_received[11];
+		sens.gx = x_get.c + gyr_x_bias;
+		sens.gy = y_get.c + gyr_y_bias;
+		sens.gz = z_get.c + gyr_z_bias;		
+		break;
+	case CPS_SWITCH:
+		x_get.b[1] = compass_received[0];
+		x_get.b[0] = compass_received[1];
+		y_get.b[1] = compass_received[2];
+		y_get.b[0] = compass_received[3];
+		z_get.b[1] = compass_received[4];
+		z_get.b[0] = compass_received[5];
+		temp = z_get.c;
+		z_get.c = -y_get.c;	
+		y_get.c = -x_get.c;
+		x_get.c = -temp;
+		sens.mx = x_get.c + mag_x_bias;
+		sens.my = y_get.c + mag_y_bias;
+		sens.mz = z_get.c + mag_z_bias;
+		break;
+	default:
+		break;
+	}
+}
+void acc_lowpass(void)
+{
+	#if ACC_LOWPASS
+	sens.ax = IIR_apply(&iir_ax, ax);
+	sens.ay = IIR_apply(&iir_ay, ay);
+	sens.az = IIR_apply(&iir_az, az);
+	#else
+	sens.ax = ax;
+	sens.ay = ay;
+	sens.az = az;
+	#endif
+}
+void imu_IIR_init(void)
+{	
+	float cutoff_freq = 25.0;
+	float smpl_freq = 500.0;
+	IIR_set_cutoff_freq(&iir_ax, cutoff_freq, smpl_freq);
+	IIR_set_cutoff_freq(&iir_ay, cutoff_freq, smpl_freq);
+	IIR_set_cutoff_freq(&iir_az, cutoff_freq, smpl_freq);
+	sens.ax = IIR_reset(&iir_ax, 0);
+	sens.ay = IIR_reset(&iir_ay, 0);
+	sens.az = IIR_reset(&iir_az, 8192);
 }

@@ -45,7 +45,7 @@
 #define STATUS_REG_DATA_OUT_LOCK	(1 << 1) /* page 16: set if data is only partially read, read device to reset */
 #define STATUS_REG_DATA_READY		(1 << 0) /* page 16: set if all axes have valid measurements */
 
-void hmc5883_init(void);
+void hmc5883_config(void);
 int hmc5883_read(char *buffer);
 
 

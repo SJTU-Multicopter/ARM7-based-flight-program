@@ -3,10 +3,10 @@
 #include "mytwi_new.h"
 #include "timer.h"
 #include "global.h"
-void hmc5883_init(void)
+void hmc5883_config(void)
 {
 //	char tmp[1];
-	unsigned char a1 = 0x70;//HMC5883L_TURN_ON | HMC5883L_AVERAGING_1 | NONE_OUTPUT_RATE | HMC5883L_MODE_NORMAL;
+	unsigned char a1 = 0x18;//HMC5883L_TURN_ON | HMC5883L_AVERAGING_1 | NONE_OUTPUT_RATE | HMC5883L_MODE_NORMAL;
 	unsigned char a2 = 0x20;
 	unsigned char a3 = 0x00;//HMC5883L_TURN_ON | MODE_REG_CONTINOUS_MODE;
 	i2cwrite(HMC5983_ADDRESS,ADDR_CONF_A,1,&a1);
@@ -30,5 +30,4 @@ int hmc5883_read(char *buffer)
 		 return 1;
 	}
 	return 0;
-
 }

@@ -1,4 +1,6 @@
 #include "ADC.h"
+#include "LED.h"
+#include "global.h"
 #include "at91sam7s256.h"
 void adc_init(void)
 {
@@ -26,14 +28,16 @@ void adc_init(void)
 
 void adc_start_conversion(void)
 {
-	//AT91S_ADC *pAdc;
 	*AT91C_ADC_CR = AT91C_ADC_START;
 }
 
 unsigned short adc_get_converted(void)
 {
-	unsigned short data=0;
+//3.75V~818
+//4.14V~904
+	unsigned short data=0,voltage=0;
 	data = *AT91C_ADC_CDR7;
-	return data;
+	voltage = constrain(data*195/43,3000,4300);
+	return voltage;
 }
 

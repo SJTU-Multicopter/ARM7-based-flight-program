@@ -2,16 +2,18 @@
 #define TIMER_H
 
 #include "at91sam7s256.h"
+void ppm_clock_init(void);
+void ppm_reset_clock(void);
+long ppm_get_time(void);//in unit of 0.01ms, use TC0
+__irq void ppm_ms_clock_int_handler(void);
 
-__irq void clock_int_handler(void);
-__irq void timer1_int_handler(void);
-extern void clock_init(void);
-extern void timer1_init(void);
-extern void delay_ms(int i);
-extern void reset_clock(void);
-long get_time(void);//in unit of 0.01ms, use TC0
-extern int clock;//in unit of ms, use TC1
-//extern int delay_count;
+void delayer_init(void);
+void delay_ms(int i);
+__irq void delayer_int_handler(void);
 
+void timer_init(void);
+void timer_reset(void);
+long timer_get(void);//in unit of 0.01ms, use TC0
+__irq void timer_int_handler(void);
 
 #endif

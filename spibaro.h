@@ -1,8 +1,8 @@
 #ifndef SPIBARO_H
 #define SPIBARO_H
 void spi_init(void);
-//void pressureinit(void);
-extern void baro_process(short step);
+extern void pressure_process(short step);
+extern void temperature_process(short step);
 float get_altitude(void);
 void MS5611_getTemperature(void);
 void MS5611_getPressure(void);
@@ -13,7 +13,6 @@ unsigned short SPI_B0_Read_16bits(unsigned char addr);
 void MS5611_RESET(void);
 void MS5611_PROM_READ(void);
 unsigned long MS5611_SPI_read_ADC(void);
-long spi_read(void);
 void sendorder(unsigned char OSR_Temp);
 unsigned char SPI_getdata(void);
 void send0data(void);
@@ -41,4 +40,5 @@ void data2pressure(void);
 #define CMD_CONVERT_D2_OSR4096 0x58   // Maximun resolution
 
 #endif
+
 

@@ -2,100 +2,149 @@
 #include "global.h"
 #include "math.h"
 #include "attitude.h"
-#define baro_weight 0.0//1.0//0.7
+#include "string.h"
+#define acc_bais_corr_weight 0.00005
 #define sonar_weight 1.0
 #if OUTDOOR
-#define gps_xy_weight 1.0
+#define gps_xy_weight 0.8
+#define gps_vxy_weight 1.2
 #define gps_z_weight 0.0
+#define baro_weight 0.75
 #elif INDOOR
-#define vicon_xy_weight 5.0
-#define vicon_z_weight 5.0
+#define vicon_xy_weight 4.0
+#define vicon_z_weight 4.0
+#define baro_weight 0.0
 #endif
-int accStaticCorr[3] = {0,0,0};
+short buf_ptr = 0;
+#define EST_BUF_SIZE 40//80ms
+int est_buf[EST_BUF_SIZE][3][2];
+int R_buf[EST_BUF_SIZE][3][3];
+#define BUF_INTERVAL 20//ms, 50Hz
+float acc_body_bias[3] = {0,0,0};
 #if OUTDOOR
 int home_lat, home_lon, home_gps_alt;
+int cos_lat_100;
+int l_x=0,l_y=0,l_z=0;
 void gps_pos_init(void)
 {
+	unsigned short i;
 	home_lat = gps.lat;
 	home_lon = gps.lon;
 	home_gps_alt = gps.alt;
-	pos.x_est[0] = 0;
-	pos.y_est[0] = 0;
+	pos.x_est[0] = gps.x * 1000;
+	pos.y_est[0] = gps.y * 1000;
 	pos.x_est[1] = 0;
 	pos.y_est[1] = 0;
-	cmd.pos_x_sp = 0;
-	cmd.pos_y_sp = 0;
+	for(i=0;i<EST_BUF_SIZE;i++){
+		est_buf[i][0][0] = gps.x * 1000;
+		est_buf[i][0][1] = 0;
+		est_buf[i][1][0] = gps.y * 1000;
+		est_buf[i][1][1] = 0;
+		est_buf[i][2][0] = baro.alt * 1000;
+		est_buf[i][2][1] = 0;
+	}
+	cos_lat_100 = cos(home_lat / 5.72957e+8f)*100.0f;
 }
-void gps2xyz(void)
+void gps2xyz(short dt)
 {
-	double relative_lat_rad = (gps.lat - home_lat) / 3508.0;//*1/1000000 * DEG2RAD*16384;
-	double relative_lon_rad = (gps.lon - home_lon) / 3508.0;
-	gps.y = (int)(relative_lat_rad * EARTH_RADIAS*1000)>>14;
-	gps.x = relative_lon_rad * EARTH_RADIAS * cos(home_lat /57471264.0)*1000;
+	int equator_distance = (gps.lon - home_lon) * EARTH_RADIAS /5729;
+	//(gps.lon - home_lon)(unit)/57.3(deg/rad)/1000000(unit/deg) * EARTH_RADIAS(m) * 1000(mm/m);
+	gps.y = (gps.lat - home_lat) * EARTH_RADIAS /5729;
+	gps.x = equator_distance * cos_lat_100 / 100;
 	gps.z = (gps.alt - home_gps_alt)*1000;
+	if(gps.azm != 0.0f){	
+		gps.vx=gps.vel * sin(gps.azm);//north is 0, east is 90
+		gps.vy=gps.vel * cos(gps.azm);				
+	}
+	else{
+		gps.vx = (gps.x - l_x) *1000/ dt;
+		gps.vy = (gps.y - l_y) *1000/ dt;
+	}
+	l_x=gps.x;
+	l_y=gps.y;
 }
 void gps_pos_corr(short dt)
 {
-	int corr_x, corr_y, corr_z;
-	short corr_vx, corr_vy, corr_vz;
-	static int l_x=0,l_y=0,l_z=0;
+	unsigned char i;
+	float c;
+	float glob_acc_bias_corr_x = 0.0f, glob_acc_bias_corr_y = 0.0f;
+	int corr_x, corr_y;//, corr_z;
+	short corr_vx, corr_vy;//, corr_vz;
+	short est_i;
 	static char start = 1;
 	if(start == 1){
 		l_x = gps.x;
 		l_y = gps.y;	
-		l_z = gps.z;
 		start = 0;
 	}	
-	gps2xyz();
-	corr_x = gps.x - pos.x_est[0];
-	corr_y = gps.y - pos.y_est[0];
-	corr_z = gps.z - pos.z_est[0];
+	gps2xyz(dt);
+	est_i = buf_ptr - 1 - minimum(EST_BUF_SIZE - 1,GPS_DELAY / BUF_INTERVAL);
+	if (est_i < 0) {
+		est_i += EST_BUF_SIZE;
+	}
+	corr_x = gps.x - est_buf[est_i][0][0] / 1000;
+	corr_y = gps.y - est_buf[est_i][1][0] / 1000;
 	inertial_filter_correct(corr_x, dt, pos.x_est, 0, gps_xy_weight);
 	inertial_filter_correct(corr_y, dt, pos.y_est, 0, gps_xy_weight);
-	inertial_filter_correct(corr_z, dt, pos.z_est, 0, gps_z_weight);
-	gps.vx = (gps.x - l_x) *1000/ dt;
-	gps.vy = (gps.y - l_y) *1000/ dt;
-	gps.vz = (gps.z - l_z) *1000/ dt;
-	//compare with gps.vel
-	l_x=gps.x;
-	l_y=gps.y;
-	l_z=gps.z;			
-	corr_vx = gps.vx - pos.x_est[1];
-	corr_vy = gps.vy - pos.y_est[1];
-	corr_vz = gps.vz - pos.z_est[1];
-	inertial_filter_correct(corr_vx, dt, pos.x_est, 1, gps_xy_weight);
-	inertial_filter_correct(corr_vy, dt, pos.y_est, 1, gps_xy_weight);
-	inertial_filter_correct(corr_vz, dt, pos.z_est, 1, gps_z_weight);
+	
+	corr_vx = gps.vx - est_buf[est_i][0][1] / 1000;
+	corr_vy = gps.vy - est_buf[est_i][1][1] / 1000;
+	inertial_filter_correct(corr_vx, dt, pos.x_est, 1, gps_vxy_weight);
+	inertial_filter_correct(corr_vy, dt, pos.y_est, 1, gps_vxy_weight);
+	smpl.vel_filtered = 1;
+	glob_acc_bias_corr_x = -corr_x * gps_xy_weight * gps_xy_weight - corr_vx * gps_vxy_weight;
+	glob_acc_bias_corr_y = -corr_y * gps_xy_weight * gps_xy_weight - corr_vy * gps_vxy_weight;
+	for(i=0;i<3;i++){
+		c = glob_acc_bias_corr_x * R_buf[est_i][0][i];
+		c += glob_acc_bias_corr_y * R_buf[est_i][1][i];
+		c /= DSCRT_F;
+		acc_body_bias[i] += c * dt * acc_bais_corr_weight;
+	}
 }
 #elif INDOOR
 void vicon_pos_init(void)
 {
-	pos.x_est[0] = vicon.x;
-	pos.y_est[0] = vicon.y;
-	pos.z_est[0] = vicon.z;
+	unsigned int i;
+	for(i=0;i<EST_BUF_SIZE;i++){
+		est_buf[i][0][0] = vicon.x * 1000;
+		est_buf[i][0][1] = 0;
+		est_buf[i][1][0] = vicon.y * 1000;
+		est_buf[i][1][1] = 0;
+		est_buf[i][2][0] = vicon.z * 1000;
+		est_buf[i][2][1] = 0;
+	}
+	pos.x_est[0] = vicon.x * 1000;
+	pos.y_est[0] = vicon.y * 1000;
+	pos.z_est[0] = vicon.z * 1000;
 	pos.x_est[1] = 0;
 	pos.y_est[1] = 0;
 	pos.z_est[1] = 0;
 }
 void vicon_pos_corr(short dt)
 {
-	short corr_x, corr_y, corr_z;
-	short corr_vx, corr_vy, corr_vz;
+	unsigned char i,j;
+	float c;
+	float glob_acc_bias_corr[3] = {0.0f, 0.0f, 0.0f};
+	short vicon_corr[3][2];
 	static short l_x=0,l_y=0,l_z=0;
 	static char start = 1;
+	short est_i;
 	if(start == 1){
 		l_x = vicon.x;
 		l_y = vicon.y;	
 		l_z = vicon.z;
 		start = 0;
 	}
-	vicon.corr_flag = 0;
-	corr_x = vicon.x - pos.x_est[0];
-	corr_y = vicon.y - pos.y_est[0];
-	corr_z = vicon.z - pos.z_est[0];
-	inertial_filter_correct(corr_x, dt, pos.x_est, 0, vicon_xy_weight);
-	inertial_filter_correct(corr_y, dt, pos.y_est, 0, vicon_xy_weight);
-	inertial_filter_correct(corr_z, dt, pos.z_est, 0, vicon_z_weight);
+	est_i = buf_ptr - 1 - VICON_DELAY / BUF_INTERVAL;
+	if (est_i < 0) {
+		est_i += EST_BUF_SIZE;
+	}
+	vicon_corr[0][0] = vicon.x - est_buf[est_i][0][0] / 1000;
+	vicon_corr[1][0] = vicon.y - est_buf[est_i][1][0] / 1000;
+	vicon_corr[2][0] = vicon.z - est_buf[est_i][2][0] / 1000;
+	inertial_filter_correct(vicon_corr[0][0], dt, pos.x_est, 0, vicon_xy_weight);
+	inertial_filter_correct(vicon_corr[1][0], dt, pos.y_est, 0, vicon_xy_weight);
+	inertial_filter_correct(vicon_corr[2][0], dt, pos.z_est, 0, vicon_z_weight);
 	
 	vicon.vx = (vicon.x - l_x) *1000/ dt;
 	vicon.vy = (vicon.y - l_y) *1000/ dt;
@@ -103,35 +152,77 @@ void vicon_pos_corr(short dt)
 	l_x=vicon.x;
 	l_y=vicon.y;
 	l_z=vicon.z;			
-	corr_vx = vicon.vx - pos.x_est[1];
-	corr_vy = vicon.vy - pos.y_est[1];
-	corr_vz = vicon.vz - pos.z_est[1];
-	inertial_filter_correct(corr_vx, dt, pos.x_est, 1, vicon_xy_weight);
-	inertial_filter_correct(corr_vy, dt, pos.y_est, 1, vicon_xy_weight);
-	inertial_filter_correct(corr_vz, dt, pos.z_est, 1, vicon_z_weight);			
+	vicon_corr[0][1] = vicon.vx - est_buf[est_i][0][1] / 1000;
+	vicon_corr[1][1] = vicon.vy - est_buf[est_i][1][1] / 1000;
+	vicon_corr[2][1] = vicon.vz - est_buf[est_i][2][1] / 1000;
+	inertial_filter_correct(vicon_corr[0][1], dt, pos.x_est, 1, vicon_xy_weight);
+	inertial_filter_correct(vicon_corr[1][1], dt, pos.y_est, 1, vicon_xy_weight);
+	inertial_filter_correct(vicon_corr[2][1], dt, pos.z_est, 1, vicon_z_weight);
+
+	glob_acc_bias_corr[0] -= vicon_corr[0][0] * vicon_xy_weight * vicon_xy_weight;
+	glob_acc_bias_corr[0] -= vicon_corr[0][1] * vicon_xy_weight;
+	glob_acc_bias_corr[1] -= vicon_corr[1][0] * vicon_xy_weight * vicon_xy_weight;
+	glob_acc_bias_corr[1] -= vicon_corr[1][1] * vicon_xy_weight;
+	glob_acc_bias_corr[2] -= vicon_corr[2][0] * vicon_z_weight * vicon_z_weight;
+	glob_acc_bias_corr[2] -= vicon_corr[2][1] * vicon_z_weight;
+	//because baro o point is different from vicon o point, 
+	//when vicon_z is contributing to acc_bias_corr
+	//error occurs
+	
+	for(i=0;i<3;i++){
+		c = 0.0f;
+		for(j=0;j<3;j++){
+			c += R_buf[est_i][j][i] * glob_acc_bias_corr[j];
+		}
+		acc_body_bias[i] += c * dt * acc_bais_corr_weight / DSCRT_F;	
+	}
 }
 #endif
-
+void baro_pos_corr(short dt)//this has same freq as baro update
+{
+	unsigned char i;
+	float c;
+	int corr_z_baro =  baro.alt - pos.z_est[0] / 1000;
+	float glob_acc_bais_z = -corr_z_baro * baro_weight * baro_weight;
+	inertial_filter_correct(corr_z_baro, dt, pos.z_est, 0, baro_weight);		
+	for(i=0;i<3;i++){
+		c = glob_acc_bais_z * att.R[2][i] / DSCRT_F;
+		acc_body_bias[i] += c * dt * acc_bais_corr_weight;
+	}	
+}
+void sonar_pos_corr(short dt)//this has same freq as sonar update
+{
+	int corr_z_sonar;
+	if(pos.sonarPos < 200){//ground effect avoid baro
+		corr_z_sonar =  pos.sonarPos - pos.z_est[0] / 1000;
+	}
+	else{
+		corr_z_sonar = 0;
+	}	
+	inertial_filter_correct(corr_z_sonar, dt, pos.z_est, 0, sonar_weight);
+}
 void corr_geo_acc(int avgAcc[3])
 {
 	int i;
 	for(i=0;i<3;i++)
-		accStaticCorr[i] = -avgAcc[i];
+		acc_body_bias[i] = avgAcc[i];
 }
 void get_geo_acc(int globAcc[3])
 {
 	int bdyAcc[3]={0,0,0};
 	short i;
 	//加速度计量程必须能容得下振动的峰值，否则算出加速度一直低于0
-	bdyAcc[0] = sens.ax * GRAVITY / 8192;
-	bdyAcc[1] = sens.ay * GRAVITY / 8192;
-	bdyAcc[2] = sens.az * GRAVITY / 8192;
+	bdyAcc[0] = (int)sens.ax * GRAVITY / 8192;
+	bdyAcc[1] = (int)sens.ay * GRAVITY / 8192;
+	bdyAcc[2] = (int)sens.az * GRAVITY / 8192;
 	for(i=0;i<3;i++)
-		bdyAcc[i] += accStaticCorr[i];
+		bdyAcc[i] -= acc_body_bias[i];
+//	for(i=0;i<3;i++)
+	//	bdyAcc[i] += accStaticCorr[i];
 	body2glob(bdyAcc, globAcc, 3);
 	globAcc[2] -= GRAVITY;
 }
-void pos_predict(short dt)
+void pos_predict(short dt,unsigned int record_count)
 {
 	int globAcc[3]={0,0,0};
 	get_geo_acc(globAcc);
@@ -141,58 +232,34 @@ void pos_predict(short dt)
 	inertial_filter_predict(dt, pos.x_est, pos.Acc_x);
 	inertial_filter_predict(dt, pos.y_est, pos.Acc_y);
 	inertial_filter_predict(dt, pos.z_est, pos.Acc_z);
-}
-void baro_pos_corr(short dt)//this has same freq as baro update
-{
-//	float dt = 1.0 / smpl.BaroRate * 11;
-	int corr_z_baro =  baro.alt - pos.z_est[0];	
-	inertial_filter_correct(corr_z_baro, dt, pos.z_est, 0, baro_weight);
-}
-void sonar_pos_corr(short dt)//this has same freq as sonar update
-{
-	int corr_z_sonar;
-	if(pos.sonarPos < 200){//ground effect avoid baro
-		corr_z_sonar =  pos.sonarPos - pos.z_est[0];
+	if(record_count == 1){
+	//50Hz recording
+	//totally 0.24s, 12 pages of buffer
+		est_buf[buf_ptr][0][0] = pos.x_est[0];
+		est_buf[buf_ptr][0][1] = pos.x_est[1];
+		est_buf[buf_ptr][1][0] = pos.y_est[0];
+		est_buf[buf_ptr][1][1] = pos.y_est[1];
+		est_buf[buf_ptr][2][0] = pos.z_est[0];
+		est_buf[buf_ptr][2][1] = pos.z_est[1];
+		memcpy(R_buf[buf_ptr], att.R, sizeof(att.R));
+		buf_ptr++;
+		if (buf_ptr >= EST_BUF_SIZE) {
+			buf_ptr = 0;
+		}
 	}
-	else{
-		corr_z_sonar = 0;
-	}	
-	inertial_filter_correct(corr_z_sonar, dt, pos.z_est, 0, sonar_weight);
 }
-
 void inertial_filter_predict(short dt, int x[2], int acc)//dt in ms, x in mm and mm/s, acc in mm/s2
-{
-	x[0] += x[1] * dt / 1000 + acc * dt /1000 * dt / 2000;
-	x[1] += acc * dt / 1000;	
+{	
+	x[0] += (x[1] * dt  + acc * dt  * dt / 2)/1000;// x[1] at least 500, that is, 0.5mm/s, to move x[0]
+	//v 1e-6m/s, dt 1e-3s, v*dt 1e-6m/s * 1e-3s = 1e-9m, div by 1000-> 1e-6m
+	x[1] += acc * dt;	//acc 1e-3m/s2, dt 1e-3s, v 1e-6m/s
 }
 void inertial_filter_correct(int e, short dt, int x[2], char i, float w)//e in mm
 {
-	int ewdt = e * w * dt / 1000;
+	//e 1e-3m, dt 1e-3s, ewdt 1e-6m
+	float ewdt = e * w * dt;
 	x[i] += ewdt;
 	if (i == 0){
 		x[1] += w * ewdt;
 	}
-}
-float kalman_filter(float ResrcData,float ProcessNiose_Q,float MeasureNoise_R,short channel)
-{
-	float R = MeasureNoise_R;
-    float Q = ProcessNiose_Q;
-	static float x_last[5];
-	float x_mid;
-	float x_now;
-	static float p_last[5];
-	float p_mid;
-	float p_now;
-	float kg;        
-	if(channel>4||channel<0)
-		return -1;
-    x_mid=x_last[channel];       //x_last=x(k-1|k-1),x_mid=x(k|k-1)
-    p_mid=p_last[channel]+Q;     //p_mid=p(k|k-1),p_last=p(k-1|k-1)
-    kg=p_mid/(p_mid+R); //
-    x_now=x_mid+kg*(ResrcData-x_mid);
-                
-    p_now=(1-kg)*p_mid;     
-    p_last[channel] = p_now; 
-    x_last[channel] = x_now; 
-    return x_now;
 }

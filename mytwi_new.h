@@ -81,8 +81,8 @@ unsigned char i2cwtritebyte(unsigned char address, unsigned short reg, unsigned 
 unsigned char i2cwrite(unsigned char address, unsigned short reg, unsigned char len, unsigned char *data);
 unsigned char i2creadbyte(unsigned char address, unsigned short reg, char *buf);
 unsigned char i2cread(unsigned char address, unsigned short reg, unsigned char len, char *buf);
-void g_a_init(void);
-void compass_init(void);
+void g_a_config(void);
+void compass_config(void);
 int twi_readcompass(char *buffer);
 void compass_init_read(void);
 #endif

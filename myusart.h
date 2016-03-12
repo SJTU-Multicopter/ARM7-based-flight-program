@@ -7,12 +7,6 @@ extern unsigned short crc_update (unsigned short crc, unsigned char data);
 extern unsigned short crc16(void* data, unsigned short cnt);
 extern void uart_write_char(unsigned char ch);
 extern void uart_send_data(unsigned char *buffer,unsigned char length);
-extern void uart_send_packet(void *data,unsigned short length,short step);
-#if XBEE_DMA
-extern void get_xbee_data(void);
-#endif
-//#define RBREAD 0
-//#define RBWRITE 1
-//#define RBFREE  2 
-//#define RINGBUFFERSIZE	384
+extern unsigned char get_xbee_data(void);
+extern void refill_tx(void *data,unsigned short length);
 #endif  

@@ -4,18 +4,20 @@
 #include "global.h"
 void twi_init(void)
 {
- 	*AT91C_PMC_PCER|=(1<<AT91C_ID_TWI);		//TWI时钟使能
+// 	AT91S_AIC * pAIC = AT91C_BASE_AIC;
+	*AT91C_PMC_PCER|=(1<<AT91C_ID_TWI);		//TWI时钟使能
 	*AT91C_PIOA_PDR|=0x18;		
 	*AT91C_PIOA_ASR|=0x18;		//分配TWI
 	*AT91C_PIOA_MDER|=0x18;		//pull-up
 	*AT91C_TWI_IDR = 0x107;		
 	*AT91C_TWI_CR =  AT91C_TWI_SWRST;
 	*AT91C_TWI_CR =  AT91C_TWI_MSEN;
-	*AT91C_TWI_CWGR = 0x11920;
+	//*AT91C_TWI_CWGR = 0x11920;
+	*AT91C_TWI_CWGR = 0x11B1B;
 	*AT91C_AIC_IDCR = (1<<AT91C_ID_TWI);		
 }
 
-void g_a_init()
+void g_a_config()
 {
 	unsigned char a1[1] = {1};
 	unsigned char a2[1] = {3};
@@ -31,7 +33,7 @@ void g_a_init()
 	i2cwrite(MPU_ADDR,RA_INT_ENABLE,1,a5);
 }
 
-void compass_init()
+void compass_config()
 {
 	unsigned char data_write[3];
 	data_write[0]=0x02;
@@ -77,6 +79,16 @@ unsigned char i2creadbyte(unsigned char address, unsigned short reg, char *buf)
     *buf = *AT91C_TWI_RHR;              
     return AT91C_EEPROM_READ_OK; 
 }
+int twi_read(const AT91PS_TWI pTwi , int intAddress, char *data, int size)   
+{    		   
+	*AT91C_TWI_CR = 0x00000004;
+    pTwi->TWI_MMR = IMU_ADD | size | AT91C_TWI_MREAD;       
+    pTwi->TWI_IADR = intAddress;   
+    pTwi->TWI_CR = AT91C_TWI_START|AT91C_TWI_STOP;   
+    while (!(pTwi->TWI_SR & AT91C_TWI_TXCOMP));            
+    *data = pTwi->TWI_RHR;              
+    return AT91C_EEPROM_READ_OK;   
+}
 
 unsigned char i2cread(unsigned char address, unsigned short reg, unsigned char len, char *buf)
 {
@@ -99,16 +111,7 @@ int twi_write(const AT91PS_TWI pTwi, int intAddress, char *data2send, int size)
     return AT91C_EEPROM_WRITE_OK;
 }
 
-int twi_read(const AT91PS_TWI pTwi , int intAddress, char *data, int size)   
-{    		   
-	*AT91C_TWI_CR = 0x00000004;
-    pTwi->TWI_MMR = IMU_ADD | size | AT91C_TWI_MREAD;       
-    pTwi->TWI_IADR = intAddress;   
-    pTwi->TWI_CR = AT91C_TWI_START|AT91C_TWI_STOP;   
-    while (!(pTwi->TWI_SR & AT91C_TWI_TXCOMP));            
-    *data = pTwi->TWI_RHR;              
-    return AT91C_EEPROM_READ_OK;   
-}
+
 
 void twi_read_all(char *buffer){
 	int i;
