@@ -3,3 +3,14 @@
 *.cpp
 *.hpp
 *.c~
+*.iex
+*.ini
+*.lst
+*.axf
+*.hex
+*.htm
+*.lnp
+*.map
+*.plg
+/my
+
